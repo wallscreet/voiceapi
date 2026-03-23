@@ -1,5 +1,4 @@
 import wave
-
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, Response
 from piper import PiperVoice
@@ -23,38 +22,59 @@ class TTSRequest(BaseModel):
     text: str
 
 
+# @app.post("/tts")
+# async def tts(req: TTSRequest):
+#     text = req.text.strip()
+#     if not text:
+#         raise HTTPException(400, "Text required")
+
+#     print(f"[TTS] Received text (len={len(text)}): '{text}'")
+
+#     wav_io = io.BytesIO()
+
+#     try:
+#         with wave.open(wav_io, 'wb') as wav_file:
+#             voice.synthesize_wav(text, wav_file)
+
+#         wav_io.seek(0)
+#         audio_bytes = wav_io.read()
+
+#         print(f"[TTS] Synthesized {len(audio_bytes)} bytes")
+        
+#         wav_io.seek(0)
+
+#         return Response(
+#             content=audio_bytes,
+#             media_type="audio/wav",
+#             headers={"Content-Disposition": "attachment; filename=speech.wav"}
+#         )
+
+#     except Exception as e:
+#         print(f"[TTS] Synthesis failed: {type(e).__name__}: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         raise HTTPException(500, f"TTS synthesis failed: {str(e)}")
+
+# -------------------------------------------------------------------
 @app.post("/tts")
 async def tts(req: TTSRequest):
     text = req.text.strip()
     if not text:
         raise HTTPException(400, "Text required")
 
-    print(f"[TTS] Received text (len={len(text)}): '{text}'")
-
-    wav_io = io.BytesIO()
-
-    try:
-        with wave.open(wav_io, 'wb') as wav_file:
-            voice.synthesize_wav(text, wav_file)
-
-        wav_io.seek(0)
-        audio_bytes = wav_io.read()
-
-        print(f"[TTS] Synthesized {len(audio_bytes)} bytes")
+    def generate_pcm():
+        # Optional: clean text for better phonemization
+        text = re.sub(r'\s+', ' ', text).strip()
         
-        wav_io.seek(0)
+        # Stream raw PCM chunks (no header)
+        for chunk in voice.synthesize(text):
+            yield chunk
 
-        return Response(
-            content=audio_bytes,
-            media_type="audio/wav",
-            headers={"Content-Disposition": "attachment; filename=speech.wav"}
-        )
-
-    except Exception as e:
-        print(f"[TTS] Synthesis failed: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(500, f"TTS synthesis failed: {str(e)}")
+    return StreamingResponse(
+        generate_pcm(),
+        media_type="audio/pcm;rate=22050",  # optional hint, clients can ignore
+    )
+# -------------------------------------------------------------------
 
 @app.post("/stt")
 async def stt(file: UploadFile = File(...)):
