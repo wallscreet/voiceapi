@@ -1,9 +1,7 @@
-import wave
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import StreamingResponse, Response
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
 from piper import PiperVoice
 from pathlib import Path
-import io
 import subprocess
 import tempfile
 import os
@@ -22,51 +20,17 @@ class TTSRequest(BaseModel):
     text: str
 
 
-# @app.post("/tts")
-# async def tts(req: TTSRequest):
-#     text = req.text.strip()
-#     if not text:
-#         raise HTTPException(400, "Text required")
-
-#     print(f"[TTS] Received text (len={len(text)}): '{text}'")
-
-#     wav_io = io.BytesIO()
-
-#     try:
-#         with wave.open(wav_io, 'wb') as wav_file:
-#             voice.synthesize_wav(text, wav_file)
-
-#         wav_io.seek(0)
-#         audio_bytes = wav_io.read()
-
-#         print(f"[TTS] Synthesized {len(audio_bytes)} bytes")
-        
-#         wav_io.seek(0)
-
-#         return Response(
-#             content=audio_bytes,
-#             media_type="audio/wav",
-#             headers={"Content-Disposition": "attachment; filename=speech.wav"}
-#         )
-
-#     except Exception as e:
-#         print(f"[TTS] Synthesis failed: {type(e).__name__}: {e}")
-#         import traceback
-#         traceback.print_exc()
-#         raise HTTPException(500, f"TTS synthesis failed: {str(e)}")
-
-# -------------------------------------------------------------------
 @app.post("/tts")
 async def tts(req: TTSRequest):
     text = req.text.strip()
     if not text:
         raise HTTPException(400, "Text required")
 
-    # Optional: minor cleaning to help phonemization
+    # cleaning to help phonemization
     text = re.sub(r'\s+', ' ', text).strip()
 
     def generate_pcm_chunks():
-        for chunk in voice.synthesize(text):  # ← this is the generator!
+        for chunk in voice.synthesize(text):
             # Get raw 16-bit PCM bytes directly
             pcm_bytes = chunk.audio_int16_bytes
             if pcm_bytes:
@@ -74,13 +38,13 @@ async def tts(req: TTSRequest):
 
     return StreamingResponse(
         generate_pcm_chunks(),
-        media_type="audio/pcm;rate=22050",  # Hint (client can ignore)
+        media_type="audio/pcm;rate=22050",
         headers={
             "Content-Type": "audio/pcm",
             "X-Sample-Rate": str(voice.config.sample_rate),  # Optional metadata
         }
     )
-# -------------------------------------------------------------------
+
 
 @app.post("/stt")
 async def stt(file: UploadFile = File(...)):
