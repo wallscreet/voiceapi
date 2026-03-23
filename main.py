@@ -62,17 +62,23 @@ async def tts(req: TTSRequest):
     if not text:
         raise HTTPException(400, "Text required")
 
-    def generate_pcm():
-        # Optional: clean text for better phonemization
-        text = re.sub(r'\s+', ' ', text).strip()
-        
-        # Stream raw PCM chunks (no header)
-        for chunk in voice.synthesize(text):
-            yield chunk
+    # Optional: minor cleaning to help phonemization
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    def generate_pcm_chunks():
+        for chunk in voice.synthesize(text):  # ← this is the generator!
+            # Get raw 16-bit PCM bytes directly
+            pcm_bytes = chunk.audio_int16_bytes
+            if pcm_bytes:
+                yield pcm_bytes
 
     return StreamingResponse(
-        generate_pcm(),
-        media_type="audio/pcm;rate=22050",  # optional hint, clients can ignore
+        generate_pcm_chunks(),
+        media_type="audio/pcm;rate=22050",  # Hint (client can ignore)
+        headers={
+            "Content-Type": "audio/pcm",
+            "X-Sample-Rate": str(voice.config.sample_rate),  # Optional metadata
+        }
     )
 # -------------------------------------------------------------------
 
